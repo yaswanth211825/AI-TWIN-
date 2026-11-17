@@ -1,0 +1,9 @@
+# Real chat data and everything generated from it stays on this machine.
+data/
+*.txt
+*.zip
+
+__pycache__/
+*.pyc
+.venv/
+.DS_Store
