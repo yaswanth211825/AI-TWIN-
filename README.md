@@ -13,6 +13,7 @@ The raw export stays outside the project (`~/Downloads/Mustang_Chats/`).
 | 1 | `pipeline/step1_parse_clean.py` | `data/messages.jsonl`, `data/step1_report.json` | done |
 | 2 | `pipeline/step2_turns_sessions.py` | `data/turns.jsonl`, `data/step2_report.json` | done |
 | 3 | `pipeline/step3_exchanges.py` | `data/exchanges.jsonl`, `data/step3_report.json` | done |
+| 3b | `pipeline/step3b_tags.py` | `data/exchanges_tagged.jsonl`, `data/step3b_report.json` | done |
 | 4 | time split: train / test | | next |
 | 5 | baseline score | | |
 | 6 | fine-tune | | |
@@ -71,6 +72,24 @@ Output row:
 {"exchange_id": 1, "session_id": 1, "ts": "...", "context": [{"sender": "friend", "text": "..."}],
  "reply": "...", "reply_n_messages": 2, "latency_seconds": 42, "low_value": false}
 ```
+
+## Step 3b: tags
+
+```bash
+python3 -m pipeline.step3b_tags export   # compact batches in data/tag_batches/
+python3 -m pipeline.step3b_tags merge    # validates data/tags/*.tsv and writes exchanges_tagged.jsonl
+```
+
+Each exchange gets four tags, written by an LLM reading the exported batches and checked on merge:
+
+| Tag | Values |
+|---|---|
+| `topic` | career, studies, tech, plans, banter, personal, family, daily, other |
+| `type` | answer, question, teasing, support, plan, reaction, smalltalk |
+| `quality` | 1 (says nothing about your style) to 5 (very typical) |
+| `private` | true when the reply or its context holds secrets, third-party sensitive details or content the twin should never repeat |
+
+Later steps keep exchanges with `quality >= 3` and `private == false`.
 
 ## Tests
 
