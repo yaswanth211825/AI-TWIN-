@@ -23,7 +23,7 @@ writes the training files for it.
 | 5 | `pipeline/step5_baseline.py` | `data/eval/results.json`, `data/eval/prompts_*.jsonl` | offline baselines done; LLM baselines need replies |
 | 6 | choose the generation model (`step5_baseline.py --openai`) | `data/eval/results_sample40.json` | done: `gpt-6-luna` |
 | 7 | `app/` (`RagIndexer`, `RetrievalExporter`) + `pipeline/step7_retrieval_eval.py` | pgvector table `style_examples`, `data/eval/step7_retrieval.json` | done |
-| 8 | `app/.../chat/*`, `config/AiConfig.java`, `prompts/persona.st` | chat API on port 8095 | chat core done; guardrails + page in 8b |
+| 8 | `app/.../chat/*`, `config/AiConfig.java`, `prompts/persona.st` | chat API + page on port 8095 | done (8 core, 8b guardrails, page, reply exporter) |
 | 9 | compare and blind test | | |
 
 ## Step 1: parse and clean
@@ -249,4 +249,44 @@ curl -s -X POST -H 'X-Client-Id: 11111111-1111-1111-1111-111111111111' localhost
 - Memory stores the user message without the injected examples.
 - First token: about 2 s (7 s on the very first call after startup).
 
-Next (8b): rate limits and access code, the chat page, and a reply exporter so step 9 scores the real app.
+
+## Step 8b: guardrails, chat page and reply exporter
+
+```
+request ─▶ GuardrailInterceptor (/api/conversations/**)
+             1. access code   X-Access-Code vs APP_ACCESS_CODE (constant-time compare)   ─▶ 401
+             2. per client IP  8 msgs/min, 150 msgs/day, 20 new chats/hour (sliding window) ─▶ 429 + Retry-After
+             3. whole app      500 msgs/day (protects the OpenAI bill)                      ─▶ 503
+           ─▶ ChatController
+```
+
+- **Sliding-window limiter** (`guard/SlidingWindowLimiter.java`): keeps each key's recent timestamps, so there is
+  no burst at a window edge as with fixed buckets. It takes a `Clock`, so tests move time instead of sleeping, and is
+  capped at 50,000 keys. Reads (GET) are not limited; `0` means no limit.
+- **Client IP** (`guard/ClientIp.java`): `X-Forwarded-For` is read from the right, skipping `TRUSTED_PROXY_HOPS`
+  entries added by our own proxies. V4 took the first entry, which the client can type itself and so dodge every
+  limit. With 0 hops (local run) the header is ignored and the socket address is used.
+- **Access code**: off when `APP_ACCESS_CODE` is empty; compared with `MessageDigest.isEqual` so timing leaks nothing.
+- **Chat page** (`static/index.html`, no build step): chat list with new/delete, streamed replies read from the SSE
+  body with `fetch`, a code prompt shown only on 401, friendly notices for 429/503, light and dark themes, phone layout.
+- **Reply exporter** (`eval/ReplyExporter.java`, `ai-twin.eval.export-replies=true`): answers every `test.jsonl`
+  message through the real pipeline (persona, emoji filter, pgvector examples, gpt-6-luna) and writes
+  `data/eval/replies_app@<model>.jsonl` for step 9. The test history is passed as messages, so nothing is written to
+  chat memory, and a rerun resumes where it stopped.
+
+| Setting (`ai-twin.guard.*`) | Env | Default |
+|---|---|---|
+| `access-code` | `APP_ACCESS_CODE` | empty (open) |
+| `messages-per-minute` / `messages-per-day` | | 8 / 150 |
+| `new-chats-per-hour` | | 20 |
+| `global-messages-per-day` | | 500 |
+| `trusted-proxy-hops` | `TRUSTED_PROXY_HOPS` | 0 (set 1 behind one proxy, e.g. Render) |
+
+### Step 8b check (2026-11-17)
+
+- Page: sent "hey em chestunnav? exams ela ayyayi", reply streamed in Tenglish, chat appeared in the list; no console
+  errors; phone width (375 px) works.
+- Found and fixed: `#gate { display: flex }` beat the `hidden` attribute, so the code prompt always showed. Added
+  `[hidden] { display: none !important; }`.
+- Exporter with `limit=3` wrote 3 replies and 0 chat-memory rows.
+- Tests: 20 Java (guardrails 5, limiter 3, exporter 1, emoji 5, chat 2, style advisor 1, RAG record 3) and 47 Python tests pass.

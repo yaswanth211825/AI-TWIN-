@@ -5,6 +5,8 @@ import com.yaswanth.aitwin.chat.EmojiFilterAdvisor;
 import com.yaswanth.aitwin.chat.StyleExamplesAdvisor;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.client.advisor.api.Advisor;
@@ -15,6 +17,7 @@ import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 import org.springframework.core.io.Resource;
 
 /**
@@ -26,6 +29,9 @@ import org.springframework.core.io.Resource;
  *   → gpt-6-luna                 generates the reply, streamed token by token
  *
  * Lower order runs first on the way in and last on the way out.
+ *
+ * A second client, "evalChatClient", is the same pipeline without memory: step 9 passes each test
+ * conversation in directly, so evaluation never writes into anyone's chat history.
  */
 @Configuration
 public class AiConfig {
@@ -41,19 +47,35 @@ public class AiConfig {
                 .build();
     }
 
+    /** The client the chat API uses. */
     @Bean
+    @Primary
     ChatClient chatClient(ChatClient.Builder builder, ChatMemory chatMemory, VectorStore vectorStore,
-                          TwinProperties props,
-                          @Value("classpath:prompts/persona.st") Resource persona) throws IOException {
-        String systemPrompt = persona.getContentAsString(StandardCharsets.UTF_8)
-                .replace("{partner}", props.chat().partner());
+                          TwinProperties props, @Value("classpath:prompts/persona.st") Resource persona)
+            throws IOException {
+        Advisor memory = MessageChatMemoryAdvisor.builder(chatMemory).order(MEMORY_ORDER).build();
+        return build(builder, persona, props.chat().partner(), vectorStore, props, memory);
+    }
 
-        return builder
-                .defaultSystem(systemPrompt)
-                .defaultAdvisors(
-                        MessageChatMemoryAdvisor.builder(chatMemory).order(MEMORY_ORDER).build(),
-                        new EmojiFilterAdvisor(props.chat().emojiKeepRate(), MEMORY_ORDER + 1),
-                        new StyleExamplesAdvisor(vectorStore, props.chat().topK(), MEMORY_ORDER + 2))
-                .build();
+    /** Same persona, emoji filter and style examples; no memory. Used only by eval.ReplyExporter. */
+    @Bean
+    ChatClient evalChatClient(ChatClient.Builder builder, VectorStore vectorStore, TwinProperties props,
+                              @Value("classpath:prompts/persona.st") Resource persona) throws IOException {
+        return build(builder, persona, props.eval().partner(), vectorStore, props, null);
+    }
+
+    private static ChatClient build(ChatClient.Builder builder, Resource persona, String partner,
+                                    VectorStore vectorStore, TwinProperties props, Advisor memory)
+            throws IOException {
+        String systemPrompt = persona.getContentAsString(StandardCharsets.UTF_8).replace("{partner}", partner);
+
+        List<Advisor> advisors = new ArrayList<>();
+        if (memory != null) {
+            advisors.add(memory);
+        }
+        advisors.add(new EmojiFilterAdvisor(props.chat().emojiKeepRate(), MEMORY_ORDER + 1));
+        advisors.add(new StyleExamplesAdvisor(vectorStore, props.chat().topK(), MEMORY_ORDER + 2));
+
+        return builder.defaultSystem(systemPrompt).defaultAdvisors(advisors).build();
     }
 }

@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Yaswanth's Twin</title>
+<style>
+  :root {
+    --bg: #f4f6f5; --panel: #ffffff; --ink: #18211f; --muted: #5f6e6b; --line: #dde4e2;
+    --accent: #0f766e; --accent-ink: #ffffff; --me: #d9f1ec; --twin: #ffffff; --warn: #9a3412; --warn-bg: #fdecdf;
+    --font: "Segoe UI", system-ui, -apple-system, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #0f1514; --panel: #161e1d; --ink: #e5eeec; --muted: #93a6a2; --line: #26332f;
+            --accent: #3cc7b6; --accent-ink: #0f1514; --me: #173a35; --twin: #1c2624; --warn: #f2a067; --warn-bg: #3a2416; }
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body { background: var(--bg); color: var(--ink); font: 16px/1.5 var(--font); display: flex; }
+  button { font: inherit; cursor: pointer; }
+  button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+  aside { width: 280px; flex: none; background: var(--panel); border-right: 1px solid var(--line); display: flex; flex-direction: column; }
+  aside header { padding: 16px; display: flex; gap: 8px; align-items: center; border-bottom: 1px solid var(--line); }
+  aside h1 { font-size: 17px; margin: 0; flex: 1; }
+  #new { background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 8px; padding: 7px 12px; font-weight: 600; }
+  #chats { list-style: none; margin: 0; padding: 8px; overflow-y: auto; flex: 1; }
+  #chats li { display: flex; align-items: center; border-radius: 8px; }
+  #chats li.active { background: var(--me); }
+  #chats .open { flex: 1; min-width: 0; text-align: left; background: none; border: 0; color: inherit; padding: 9px 10px;
+                 white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #chats .del { background: none; border: 0; color: var(--muted); padding: 6px 10px; }
+  aside footer { padding: 12px 16px; font-size: 13px; color: var(--muted); border-top: 1px solid var(--line); }
+
+  main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  main header { display: none; padding: 12px 16px; border-bottom: 1px solid var(--line); background: var(--panel); align-items: center; gap: 12px; }
+  #log { flex: 1; overflow-y: auto; padding: 24px max(16px, 6vw); display: flex; flex-direction: column; gap: 10px; }
+  .msg { max-width: min(640px, 85%); padding: 9px 13px; border-radius: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .user { align-self: flex-end; background: var(--me); border-bottom-right-radius: 4px; }
+  .assistant { align-self: flex-start; background: var(--twin); border: 1px solid var(--line); border-bottom-left-radius: 4px; }
+  .typing::after { content: "▍"; animation: blink 1s steps(2) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  @media (prefers-reduced-motion: reduce) { .typing::after { animation: none; } }
+  .empty { margin: auto; text-align: center; color: var(--muted); max-width: 360px; }
+  .notice { align-self: center; background: var(--warn-bg); color: var(--warn); padding: 8px 12px; border-radius: 8px; font-size: 14px; }
+
+  form#composer { display: flex; gap: 8px; padding: 12px max(16px, 6vw) 16px; border-top: 1px solid var(--line); background: var(--panel); }
+  textarea { flex: 1; resize: none; font: inherit; color: inherit; background: var(--bg); border: 1px solid var(--line);
+             border-radius: 10px; padding: 10px 12px; max-height: 160px; }
+  #send { background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 10px; padding: 0 18px; font-weight: 600; }
+  #send:disabled { opacity: .5; cursor: default; }
+
+  [hidden] { display: none !important; }
+  #gate { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; padding: 16px; }
+  #gate form { background: var(--panel); border-radius: 12px; padding: 20px; width: min(360px, 100%); display: flex; flex-direction: column; gap: 10px; }
+  #gate input { font: inherit; padding: 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: inherit; }
+  #gate button { background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 8px; padding: 10px; font-weight: 600; }
+
+  @media (max-width: 720px) {
+    aside { position: fixed; inset: 0 auto 0 0; z-index: 5; transform: translateX(-100%); transition: transform .2s; }
+    body.menu aside { transform: none; }
+    main header { display: flex; }
+  }
+</style>
+</head>
+<body>
+<aside>
+  <header><h1>Yaswanth's Twin</h1><button id="new" type="button">New chat</button></header>
+  <ul id="chats" aria-label="Chats"></ul>
+  <footer>An AI that replies in Yaswanth's style. Replies are generated and can be wrong.</footer>
+</aside>
+<main>
+  <header><button id="menu" type="button" aria-label="Show chats">☰</button><strong>Yaswanth's Twin</strong></header>
+  <div id="log" aria-live="polite"></div>
+  <form id="composer">
+    <textarea id="text" rows="1" maxlength="2000" placeholder="Message the twin… (Enter to send, Shift+Enter for a new line)"></textarea>
+    <button id="send" type="submit">Send</button>
+  </form>
+</main>
+<div id="gate" hidden>
+  <form>
+    <strong>Access code</strong>
+    <span style="color:var(--muted);font-size:14px">This demo is private. Enter the code you were given.</span>
+    <input id="code" type="password" autocomplete="off" required>
+    <button type="submit">Continue</button>
+  </form>
+</div>
+<script>
+(() => {
+  const store = {
+    get: (k) => { try { return localStorage.getItem(k); } catch (_) { return null; } },
+    set: (k, v) => { try { localStorage.setItem(k, v); } catch (_) {} },
+  };
+  // One random id per browser: the server only shows chats created with this id.
+  let clientId = store.get('twinClientId');
+  if (!clientId) { clientId = crypto.randomUUID(); store.set('twinClientId', clientId); }
+  let accessCode = store.get('twinAccessCode') || '';
+  let current = null;
+  let busy = false;
+
+  const $ = (id) => document.getElementById(id);
+  const log = $('log'), chats = $('chats'), text = $('text'), send = $('send');
+
+  function headers() {
+    const h = { 'X-Client-Id': clientId, 'Content-Type': 'application/json' };
+    if (accessCode) h['X-Access-Code'] = accessCode;
+    return h;
+  }
+
+  // Asks for the access code once; resolves when the user submits it.
+  function askCode() {
+    $('gate').hidden = false; $('code').focus();
+    return new Promise((resolve) => {
+      $('gate').querySelector('form').onsubmit = (e) => {
+        e.preventDefault();
+        accessCode = $('code').value.trim(); store.set('twinAccessCode', accessCode);
+        $('gate').hidden = true; resolve();
+      };
+    });
+  }
+
+  async function api(path, opts = {}) {
+    let res = await fetch('/api/conversations' + path, { ...opts, headers: headers() });
+    if (res.status === 401) { await askCode(); res = await fetch('/api/conversations' + path, { ...opts, headers: headers() }); }
+    if (!res.ok && res.status !== 401) {
+      let message = 'Something went wrong. Try again.';
+      try { message = (await res.clone().json()).message || message; } catch (_) {}
+      throw new Error(message);
+    }
+    return res;
+  }
+
+  function notice(message) {
+    const n = document.createElement('div'); n.className = 'notice'; n.textContent = message; log.appendChild(n);
+    log.scrollTop = log.scrollHeight;
+  }
+
+  function bubble(role, content) {
+    log.querySelector('.empty')?.remove();
+    const b = document.createElement('div'); b.className = 'msg ' + role; b.textContent = content;
+    log.appendChild(b); log.scrollTop = log.scrollHeight; return b;
+  }
+
+  function showEmpty() {
+    log.innerHTML = '<div class="empty"><strong>Say hi.</strong><br>The twin answers in Telugu-English, the way Yaswanth would.</div>';
+  }
+
+  async function loadChats() {
+    const list = await (await api('')).json();
+    chats.innerHTML = '';
+    for (const c of list) {
+      const li = document.createElement('li'); if (c.id === current) li.className = 'active';
+      const open = document.createElement('button'); open.className = 'open'; open.type = 'button'; open.textContent = c.title;
+      open.onclick = () => openChat(c.id);
+      const del = document.createElement('button'); del.className = 'del'; del.type = 'button'; del.textContent = '✕';
+      del.setAttribute('aria-label', 'Delete chat ' + c.title);
+      del.onclick = async () => { await api('/' + c.id, { method: 'DELETE' }); if (c.id === current) { current = null; showEmpty(); } loadChats(); };
+      li.append(open, del); chats.appendChild(li);
+    }
+    return list;
+  }
+
+  async function openChat(id) {
+    current = id; document.body.classList.remove('menu');
+    const messages = await (await api('/' + id + '/messages')).json();
+    log.innerHTML = '';
+    if (!messages.length) showEmpty();
+    messages.forEach((m) => bubble(m.role, m.text));
+    loadChats(); text.focus();
+  }
+
+  async function newChat() {
+    const c = await (await api('', { method: 'POST' })).json();
+    current = c.id; showEmpty(); await loadChats(); text.focus();
+  }
+
+  // Reads the Server-Sent Events stream: blocks separated by a blank line, with "event:" and "data:" lines.
+  async function sendMessage(message) {
+    if (!current) await newChat();
+    bubble('user', message);
+    const reply = bubble('assistant', ''); reply.classList.add('typing');
+    let res;
+    try {
+      res = await api('/' + current + '/messages', { method: 'POST', body: JSON.stringify({ text: message }) });
+    } catch (e) { reply.remove(); notice(e.message); return; }
+    const reader = res.body.getReader(); const decoder = new TextDecoder(); let buffer = '';
+    for (;;) {
+      const { value, done } = await reader.read(); if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      let cut;
+      while ((cut = buffer.indexOf('\n\n')) >= 0) {
+        const block = buffer.slice(0, cut); buffer = buffer.slice(cut + 2);
+        const event = (block.match(/^event:(.*)$/m) || [])[1]?.trim();
+        const data = block.split('\n').filter((l) => l.startsWith('data:')).map((l) => l.slice(5)).join('\n');
+        if (event === 'token') { reply.textContent += JSON.parse(data).text; log.scrollTop = log.scrollHeight; }
+        if (event === 'error') { notice(JSON.parse(data).message); }
+      }
+    }
+    reply.classList.remove('typing');
+    if (!reply.textContent) reply.remove();
+    loadChats();
+  }
+
+  $('composer').onsubmit = async (e) => {
+    e.preventDefault();
+    const message = text.value.trim(); if (!message || busy) return;
+    busy = true; send.disabled = true; text.value = ''; text.style.height = '';
+    try { await sendMessage(message); } catch (err) { notice(err.message); }
+    busy = false; send.disabled = false; text.focus();
+  };
+  text.onkeydown = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); $('composer').requestSubmit(); } };
+  text.oninput = () => { text.style.height = ''; text.style.height = text.scrollHeight + 'px'; };
+  $('new').onclick = () => newChat().catch((e) => notice(e.message));
+  $('menu').onclick = () => document.body.classList.toggle('menu');
+
+  showEmpty();
+  loadChats().then((list) => { if (list.length) openChat(list[0].id); }).catch((e) => notice(e.message));
+})();
+</script>
+</body>
+</html>

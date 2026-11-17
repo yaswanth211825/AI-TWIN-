@@ -30,7 +30,11 @@ public record TwinProperties(Rag rag, Chat chat, Eval eval) {
     public record Chat(String partner, int memoryWindow, int topK, double emojiKeepRate) {
     }
 
-    /** exportRetrieval: search every test message and write the hits for evaluation. */
-    public record Eval(boolean exportRetrieval, int topK) {
+    /**
+     * exportRetrieval: search every test message and write the hits.
+     * exportReplies: answer every test message with the real chat pipeline (minus memory).
+     * limit: only the first n test messages (0 = all). partner: who the test chats were with.
+     */
+    public record Eval(boolean exportRetrieval, boolean exportReplies, int limit, String partner, int topK) {
     }
 }

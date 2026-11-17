@@ -48,6 +48,16 @@ ai-twin:
     memory-window: 20         # messages of THIS conversation sent to the model
     top-k: 4                  # style examples per message
     emoji-keep-rate: 0.3      # luna adds emoji to ~35% of replies; keeping 30% of those matches your ~10%
+  guard:
+    access-code: ${APP_ACCESS_CODE:}                       # empty = no access code
+    messages-per-minute: ${GUARD_MESSAGES_PER_MINUTE:8}    # per IP
+    messages-per-day: ${GUARD_MESSAGES_PER_DAY:150}        # per IP
+    new-chats-per-hour: ${GUARD_NEW_CHATS_PER_HOUR:20}     # per IP
+    global-messages-per-day: ${GUARD_GLOBAL_PER_DAY:500}   # everyone combined
+    trusted-proxy-hops: ${TRUSTED_PROXY_HOPS:0}            # 0 locally; 1 behind one proxy (e.g. Render)
   eval:
     export-retrieval: false   # true: search every test message and write data/eval/retrieved_embedding.jsonl
+    export-replies: false     # true: answer every test message with the real pipeline (step 9)
+    limit: 0                  # 0 = all test messages; n = first n (for a quick check)
+    partner: Indu, a close friend   # the test data is with Indu
     top-k: 4
