@@ -1,7 +1,8 @@
 # AI Twin 5
 
 An AI twin that replies like Yaswanth, built from scratch with **RAG** (retrieval-augmented generation).
-This repo starts with the data pipeline that turns WhatsApp exports into a retrieval index and a held-out test set.
+A Python pipeline turns WhatsApp exports into a retrieval index and a held-out test set; a Spring Boot + Spring AI app
+serves the twin as a streaming chat with pgvector retrieval, chat memory and rate limits.
 
 Real chats and everything generated from them live in `data/`, which is git-ignored.
 The raw exports stay outside the project (`~/Downloads/Mustang_Chats/`): the 2024 chat and the merged 2025-26 exports
@@ -10,6 +11,42 @@ with the same friend (`config.RAW_CHATS`).
 **Why no fine-tuning:** OpenAI closed fine-tuning to new organisations on 2026-05-07 and its fine-tunable models
 shut down on 2027-01-14. Fine-tuning an open model with LoRA is future scope; `step4_split.py --finetune` still
 writes the training files for it.
+
+## How to run
+
+**Needs:** Java 21+, Docker (for PostgreSQL + pgvector), Python 3.10+ (pipeline only), an OpenAI API key.
+The chat data files (`data/rag.jsonl`, `data/test.jsonl`) come from the pipeline below and are not in git.
+
+```bash
+cd app
+docker compose up -d                      # PostgreSQL 16 + pgvector on localhost:5434
+export OPENAI_API_KEY=sk-...              # your key; never commit it
+export APP_ACCESS_CODE=pick-a-code        # optional: visitors must enter it
+./mvnw spring-boot:run                    # first start embeds rag.jsonl into pgvector (~1 min, ~$0.01)
+```
+
+Open **http://localhost:8095**: start a chat, type in Tenglish, replies stream in.
+
+| Env var | Default | Purpose |
+|---|---|---|
+| `OPENAI_API_KEY` | (required) | chat model + embeddings |
+| `OPENAI_MODEL` | `gpt-6-luna` | generation model |
+| `APP_ACCESS_CODE` | empty = open | private demo gate |
+| `TRUSTED_PROXY_HOPS` | `0` | set to 1 behind one reverse proxy (Render, Nginx) |
+| `RAG_DATA_DIR` | `../data` | where `rag.jsonl` / `test.jsonl` live |
+| `PORT` | `8095` | HTTP port |
+
+Rebuild the data from WhatsApp exports, then rerun the evaluation (step 9):
+
+```bash
+python3 -m pipeline.step1_parse_clean && python3 -m pipeline.step2_turns_sessions && python3 -m pipeline.step3_exchanges
+python3 -m pipeline.step3b_tags merge     # uses the tag files in data/tags/; new exchanges: `export`, tag, then merge
+python3 -m pipeline.step4_split
+cd app && ./mvnw spring-boot:run -Dspring-boot.run.arguments="--ai-twin.eval.export-replies=true --spring.main.web-application-type=none"
+cd .. && python3 -m pipeline.step5_baseline && python3 -m pipeline.step9_compare --blind 20
+```
+
+Tests: `cd app && ./mvnw test` (Java) and `python3 -m unittest discover -s tests` (Python).
 
 ## Pipeline
 
@@ -20,11 +57,11 @@ writes the training files for it.
 | 3 | `pipeline/step3_exchanges.py` | `data/exchanges.jsonl`, `data/step3_report.json` | done |
 | 3b | `pipeline/step3b_tags.py` | `data/exchanges_tagged.jsonl`, `data/step3b_report.json` | done |
 | 4 | `pipeline/step4_split.py` | `data/rag.jsonl`, `data/test.jsonl` | done |
-| 5 | `pipeline/step5_baseline.py` | `data/eval/results.json`, `data/eval/prompts_*.jsonl` | offline baselines done; LLM baselines need replies |
+| 5 | `pipeline/step5_baseline.py` | `data/eval/results.json`, `data/eval/prompts_*.jsonl` | done (LLM baselines on all 338 in step 9) |
 | 6 | choose the generation model (`step5_baseline.py --openai`) | `data/eval/results_sample40.json` | done: `gpt-6-luna` |
 | 7 | `app/` (`RagIndexer`, `RetrievalExporter`) + `pipeline/step7_retrieval_eval.py` | pgvector table `style_examples`, `data/eval/step7_retrieval.json` | done |
 | 8 | `app/.../chat/*`, `config/AiConfig.java`, `prompts/persona.st` | chat API + page on port 8095 | done (8 core, 8b guardrails, page, reply exporter) |
-| 9 | compare and blind test | | |
+| 9 | `app/.../eval/ReplyExporter.java` + `pipeline/step9_compare.py` | `data/eval/step9_compare.json`, `data/blind_test/` | done |
 
 ## Step 1: parse and clean
 
@@ -290,3 +327,48 @@ request ─▶ GuardrailInterceptor (/api/conversations/**)
   `[hidden] { display: none !important; }`.
 - Exporter with `limit=3` wrote 3 replies and 0 chat-memory rows.
 - Tests: 20 Java (guardrails 5, limiter 3, exporter 1, emoji 5, chat 2, style advisor 1, RAG record 3) and 47 Python tests pass.
+
+## Step 9: end-to-end evaluation
+
+The real app (persona, chat pipeline, pgvector examples, emoji filter, gpt-6-luna) answered all **338 held-out
+test messages** (`ReplyExporter`, ~$0.02). The two plain LLM baselines were run on the same 338 (~$0.04), so every
+system is scored on identical messages. None of these messages was ever indexed.
+
+| System (338 messages) | chrF | Length vs yours | Multi-line | Tenglish | Your vocabulary | Emoji |
+|---|---|---|---|---|---|---|
+| Your real replies (target) | 100 | 1.00 | 0.73 | 0.21 | 0.84 | 0.08 |
+| Random past reply | 12.2 | 0.93 | 0.78 | 0.27 | 0.89 | 0.08 |
+| Nearest past reply (embeddings) | 12.1 | 0.81 | 0.78 | 0.26 | 0.90 | 0.12 |
+| LLM, persona only | 13.8 | 0.85 | 0.22 | 0.34 | 0.71 | 0.31 |
+| LLM, persona + BM25 examples | 13.5 | 0.81 | 0.57 | 0.32 | 0.73 | 0.31 |
+| **The app** | **14.4** | **0.95** | 0.47 | 0.30 | 0.72 | **0.07** |
+
+App minus each baseline, same messages, paired bootstrap 95% interval (`python3 -m pipeline.step9_compare`):
+
+| vs | chrF (beta=2) | chrF (beta=1, no length bonus) |
+|---|---|---|
+| Nearest past reply (embeddings) | +2.4 [+1.7, +3.1] | +2.2 [+1.6, +2.8] |
+| Random past reply | +2.2 [+1.6, +3.0] | +2.4 [+1.9, +3.0] |
+| LLM, persona only | +0.7 [+0.2, +1.2] | +0.4 [-0.0, +0.8] |
+| LLM, persona + BM25 examples | +1.0 [+0.5, +1.6] | +0.5 [0.0, +1.0] |
+
+What this says, honestly:
+
+- The app is the best system on chrF and clearly beats copying a past reply (interval far from 0).
+- Against the plain LLM the gain is small: real with beta=2, borderline with beta=1. Most of the win is in **style
+  match, not word overlap**: reply length closest to yours (0.95), and emoji at your rate (0.07 vs 0.31) thanks to
+  the emoji filter.
+- Still short of you: fewer multi-line replies (0.47 vs 0.73) and less of your vocabulary (0.72 vs 0.84).
+  chrF around 14 is normal for open-ended chat: there are many good replies and only one is in the data.
+- Next ideas: embed the last two turns instead of one, more examples (top 6), a persona hint for line breaks,
+  LoRA fine-tuning on an open model.
+
+**Blind test.** `python3 -m pipeline.step9_compare --blind 20` writes `data/blind_test/sheet.md` (20 non-private
+chats, real reply and twin reply as A/B in random order; 11 real-A, 9 real-B) and `answer_key.json` separately.
+Both stay git-ignored. Friends pick which one Yaswanth wrote: around 50% correct means the twin is hard to tell apart.
+
+## Status
+
+All nine steps are done: data pipeline, tagging, split, baselines, model choice, pgvector RAG, chat app with
+guardrails and page, and end-to-end evaluation. See **How to run** at the top.
+
