@@ -11,8 +11,8 @@ The raw export stays outside the project (`~/Downloads/Mustang_Chats/`).
 | Step | Script | Output | Status |
 |---|---|---|---|
 | 1 | `pipeline/step1_parse_clean.py` | `data/messages.jsonl`, `data/step1_report.json` | done |
-| 2 | bursts and sessions | | next |
-| 3 | build exchanges | | |
+| 2 | `pipeline/step2_turns_sessions.py` | `data/turns.jsonl`, `data/step2_report.json` | done |
+| 3 | build exchanges | | next |
 | 4 | time split: train / test | | |
 | 5 | baseline score | | |
 | 6 | fine-tune | | |
@@ -35,6 +35,22 @@ Output row:
 
 ```json
 {"id": 1, "ts": "2025-05-06T23:46:48", "sender": "friend", "text": "..."}
+```
+
+## Step 2: turns and sessions
+
+```bash
+python3 -m pipeline.step2_turns_sessions
+```
+
+- **Session:** a silence longer than `SESSION_GAP_MINUTES` (60) starts a new conversation.
+- **Turn:** messages from the same sender, each within `BURST_GAP_MINUTES` (2) of the previous one, become one turn joined by line breaks. A turn never crosses a session.
+- Both thresholds live in `pipeline/config.py` and were chosen from the gap histogram of the real chat.
+
+Output row:
+
+```json
+{"turn_id": 1, "session_id": 1, "sender": "me", "start": "...", "end": "...", "n_messages": 2, "text": "line one\nline two"}
 ```
 
 ## Tests
