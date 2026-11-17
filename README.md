@@ -21,7 +21,7 @@ writes the training files for it.
 | 3b | `pipeline/step3b_tags.py` | `data/exchanges_tagged.jsonl`, `data/step3b_report.json` | done |
 | 4 | `pipeline/step4_split.py` | `data/rag.jsonl`, `data/test.jsonl` | done |
 | 5 | `pipeline/step5_baseline.py` | `data/eval/results.json`, `data/eval/prompts_*.jsonl` | offline baselines done; LLM baselines need replies |
-| 6 | choose the generation model (`step5_baseline.py --openai`) | `data/eval/results_sample40.json` | pilot ready; needs a run with your key |
+| 6 | choose the generation model (`step5_baseline.py --openai`) | `data/eval/results_sample40.json` | done: `gpt-6-luna` |
 | 7 | `app/` (`RagIndexer`, `RetrievalExporter`) + `pipeline/step7_retrieval_eval.py` | pgvector table `style_examples`, `data/eval/step7_retrieval.json` | done |
 | 8 | wire into the Spring AI app | | next |
 | 9 | compare and blind test | | |
