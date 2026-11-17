@@ -1,0 +1,34 @@
+spring:
+  application:
+    name: ai-twin-5
+  main:
+    web-application-type: none   # step 7 is an indexing job; step 8 adds the web API
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5434/ai_twin5}
+    username: ${DB_USERNAME:ai_twin5}
+    password: ${DB_PASSWORD:ai_twin5}
+  ai:
+    openai:
+      api-key: ${OPENAI_API_KEY}
+      embedding:
+        options:
+          model: text-embedding-3-small   # 1536 dimensions, $0.02 per 1M tokens
+      chat:
+        options:
+          model: gpt-6-luna               # chosen in step 6, used from step 8
+    vectorstore:
+      pgvector:
+        initialize-schema: true   # creates the table, the vector extension and the HNSW index
+        table-name: style_examples
+        dimensions: 1536
+        distance-type: cosine-distance
+        index-type: hnsw
+
+ai-twin:
+  rag:
+    # rag.jsonl and test.jsonl come from the Python pipeline. They hold real chats,
+    # so they are read from disk at run time and never packaged into the app.
+    data-dir: ${RAG_DATA_DIR:../data}
+  eval:
+    export-retrieval: false   # true: search every test message and write data/eval/retrieved_embedding.jsonl
+    top-k: 4

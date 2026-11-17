@@ -22,8 +22,8 @@ writes the training files for it.
 | 4 | `pipeline/step4_split.py` | `data/rag.jsonl`, `data/test.jsonl` | done |
 | 5 | `pipeline/step5_baseline.py` | `data/eval/results.json`, `data/eval/prompts_*.jsonl` | offline baselines done; LLM baselines need replies |
 | 6 | choose the generation model (`step5_baseline.py --openai`) | `data/eval/results_sample40.json` | pilot ready; needs a run with your key |
-| 7 | build the RAG index (embeddings + pgvector) | | |
-| 8 | wire into the Spring AI app | | |
+| 7 | `app/` (`RagIndexer`, `RetrievalExporter`) + `pipeline/step7_retrieval_eval.py` | pgvector table `style_examples`, `data/eval/step7_retrieval.json` | done |
+| 8 | wire into the Spring AI app | | next |
 | 9 | compare and blind test | | |
 
 ## Step 1: parse and clean
@@ -172,3 +172,40 @@ All models answer the same 40 test messages (`--sample`), so the comparison is f
 - All models overuse emoji (you: 10%). "Do not use emoji" in the prompt cut luna from 90% to 35%; an output
   filter in the app (step 8) handles the rest.
 - Significance checks use `metrics.paired_bootstrap`.
+
+## Step 7: the RAG index (Spring AI + pgvector)
+
+The Java app lives in `app/` (Spring Boot 4.1, Spring AI 2.0, Java 21). Its own database runs on port 5434,
+separate from AI Twin 4.
+
+```bash
+cd app
+docker compose up -d                                   # PostgreSQL + pgvector
+set -a && source <your .env with OPENAI_API_KEY> && set +a
+./mvnw spring-boot:run                                 # sync the index
+./mvnw spring-boot:run -Dspring-boot.run.arguments=--ai-twin.eval.export-retrieval=true   # + evaluation export
+cd .. && python3 -m pipeline.step7_retrieval_eval      # embedding vs BM25
+```
+
+| File | Role |
+|---|---|
+| `app/.../rag/RagRecord.java` | One line of `rag.jsonl`; turns it into a Spring AI `Document` (text = friend's message, metadata = your reply, context, topic, date) with a stable UUID |
+| `app/.../rag/RagIndexer.java` | Syncs the table with `rag.jsonl` at startup: embeds only new records, deletes records no longer in the file |
+| `app/.../rag/RetrievalExporter.java` | Evaluation only: searches every test message in pgvector and writes the hits |
+| `app/.../TwinProperties.java` | Typed `ai-twin.*` settings |
+| `pipeline/step7_retrieval_eval.py` | Compares embedding search with BM25 |
+
+Chat data is read from `../data` at run time (`RAG_DATA_DIR`) and never packaged into the app.
+
+### Step 7 results (2026-11-17, 338 test messages, top 4)
+
+| Retrieval | Same topic, top 1 | Same topic, top 4 | Found something |
+|---|---|---|---|
+| Random (chance) | 0.17 | 0.17 | |
+| BM25 keywords | 0.22 | 0.19 | 0.96 |
+| **Embeddings (text-embedding-3-small, pgvector HNSW, cosine)** | **0.32** | **0.33** | **1.00** |
+
+Embeddings find same-topic examples more often: +0.10 at top 1 (95% CI +0.04 to +0.16). BM25's top 4 is close
+to random because romanized Telugu has no fixed spelling. Copying the top hit's reply scores the same chrF
+either way (difference within noise): examples teach style, they are not answers.
+Indexing 3,366 records took about a minute and cost about $0.001; a second run embeds nothing.

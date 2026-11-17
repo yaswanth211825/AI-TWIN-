@@ -1,0 +1,16 @@
+# Local PostgreSQL with the pgvector extension, separate from AI Twin 4 (port 5433).
+#   docker compose up -d
+services:
+  pgvector:
+    image: pgvector/pgvector:pg16
+    container_name: ai-twin5-pgvector
+    environment:
+      POSTGRES_DB: ai_twin5
+      POSTGRES_USER: ai_twin5
+      POSTGRES_PASSWORD: ai_twin5
+    ports:
+      - "5434:5432"
+    volumes:
+      - pgdata5:/var/lib/postgresql/data
+volumes:
+  pgdata5:

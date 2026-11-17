@@ -7,3 +7,8 @@ __pycache__/
 *.pyc
 .venv/
 .DS_Store
+
+# Java build output and IDE files
+target/
+.idea/
+*.iml
