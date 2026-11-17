@@ -53,7 +53,7 @@ public class RagIndexer implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) throws Exception {
-        Path file = props.rag().dataDir().resolve("rag.jsonl");
+        Path file = props.rag().path().resolve("rag.jsonl");
         if (!Files.exists(file)) {
             log.warn("{} not found; run the Python pipeline first. Starting with the existing index.", file);
             return;

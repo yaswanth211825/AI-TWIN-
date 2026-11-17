@@ -53,7 +53,7 @@ public class RetrievalExporter implements ApplicationRunner {
         if (!props.eval().exportRetrieval()) {
             return;
         }
-        Path dataDir = props.rag().dataDir();
+        Path dataDir = props.rag().path();
         List<TestExchange> tests = Jsonl.read(dataDir.resolve("test.jsonl"), TestExchange.class, json);
         Path out = dataDir.resolve("eval").resolve("retrieved_embedding.jsonl");
         Files.createDirectories(out.getParent());

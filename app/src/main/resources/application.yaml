@@ -1,12 +1,19 @@
+server:
+  port: ${PORT:8095}            # AI Twin 4 uses 8090
+  error:
+    include-message: never      # never leak internal error details to the browser
+    include-stacktrace: never
+
 spring:
   application:
     name: ai-twin-5
-  main:
-    web-application-type: none   # step 7 is an indexing job; step 8 adds the web API
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5434/ai_twin5}
     username: ${DB_USERNAME:ai_twin5}
     password: ${DB_PASSWORD:ai_twin5}
+  sql:
+    init:
+      mode: always              # runs schema.sql (the conversations table)
   ai:
     openai:
       api-key: ${OPENAI_API_KEY}
@@ -15,7 +22,9 @@ spring:
           model: text-embedding-3-small   # 1536 dimensions, $0.02 per 1M tokens
       chat:
         options:
-          model: gpt-6-luna               # chosen in step 6, used from step 8
+          model: ${OPENAI_MODEL:gpt-6-luna}          # chosen in step 6
+          reasoning-effort: ${OPENAI_REASONING_EFFORT:none}   # no hidden "thinking" for chat replies
+          max-completion-tokens: 400                 # caps cost per reply; your replies are short
     vectorstore:
       pgvector:
         initialize-schema: true   # creates the table, the vector extension and the HNSW index
@@ -23,12 +32,22 @@ spring:
         dimensions: 1536
         distance-type: cosine-distance
         index-type: hnsw
+    chat:
+      memory:
+        repository:
+          jdbc:
+            initialize-schema: always   # creates spring_ai_chat_memory
 
 ai-twin:
   rag:
     # rag.jsonl and test.jsonl come from the Python pipeline. They hold real chats,
     # so they are read from disk at run time and never packaged into the app.
     data-dir: ${RAG_DATA_DIR:../data}
+  chat:
+    partner: ${CHAT_PARTNER:someone new}   # who the twin is talking to; the data is with Indu, a close friend
+    memory-window: 20         # messages of THIS conversation sent to the model
+    top-k: 4                  # style examples per message
+    emoji-keep-rate: 0.3      # luna adds emoji to ~35% of replies; keeping 30% of those matches your ~10%
   eval:
     export-retrieval: false   # true: search every test message and write data/eval/retrieved_embedding.jsonl
     top-k: 4
