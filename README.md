@@ -15,7 +15,7 @@ The raw export stays outside the project (`~/Downloads/Mustang_Chats/`).
 | 3 | `pipeline/step3_exchanges.py` | `data/exchanges.jsonl`, `data/step3_report.json` | done |
 | 3b | `pipeline/step3b_tags.py` | `data/exchanges_tagged.jsonl`, `data/step3b_report.json` | done |
 | 4 | `pipeline/step4_split.py` | `data/finetune_train.jsonl`, `finetune_val.jsonl`, `rag.jsonl`, `test.jsonl` | done |
-| 5 | baseline score | | next |
+| 5 | `pipeline/step5_baseline.py` | `data/eval/results.json`, `data/eval/prompts_*.jsonl` | offline baselines done; LLM baselines need replies |
 | 6 | fine-tune | | |
 | 7 | rebuild RAG index | | |
 | 8 | wire into the app | | |
@@ -106,6 +106,27 @@ python3 -m pipeline.step4_split
 | `finetune_train.jsonl`, `finetune_val.jsonl` | Fine-tuning (step 6) | OpenAI chat format; earlier replies of yours in the context get `"weight": 0` so only the final reply is learned |
 | `rag.jsonl` | pgvector index (step 7) | `embed_text` = the friend's last turn; `reply` stored as the style example |
 | `test.jsonl` | Scoring only (steps 5 and 9) | Never trained on or indexed |
+
+## Step 5: baseline score
+
+```bash
+python3 -m pipeline.step5_baseline                  # score everything that has replies
+python3 -m pipeline.step5_baseline --export-prompts # write LLM prompts to data/eval/
+python3 -m pipeline.step5_baseline --openai MODEL   # generate LLM replies (uses OPENAI_API_KEY, costs money)
+```
+
+Every system answers the same held-out test messages and is scored against your real replies
+(`pipeline/metrics.py`, standard library only):
+
+| Metric | Meaning |
+|---|---|
+| `chrF` | character n-gram overlap with your real reply, 0 to 100; robust to Tenglish spelling variants |
+| `length_ratio_median`, `length_error` | how close the reply length is to yours |
+| `multiline`, `tenglish`, `your_vocabulary`, `emoji` | style; compare with the "your real replies" row |
+| `assistant_speak` | share of replies that sound like a chatbot; should be 0 |
+
+Systems: `random_reply` and `nearest_reply` (BM25, `pipeline/retrieval.py`) need no API;
+`prompt_only` and `prompt_rag` are LLM baselines scored once `data/eval/replies_<system>.jsonl` exists.
 
 ## Tests
 
