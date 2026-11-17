@@ -2,7 +2,7 @@
 
 import unittest
 
-from pipeline.metrics import StyleProfile, chrf, summarize
+from pipeline.metrics import StyleProfile, chrf, paired_bootstrap, summarize
 from pipeline.retrieval import BM25
 from pipeline.step5_baseline import build_messages, estimate_cost, sample
 
@@ -17,6 +17,18 @@ class ChrfTests(unittest.TestCase):
 
     def test_empty(self):
         self.assertEqual(chrf("", "ha"), 0.0)
+
+
+class BootstrapTests(unittest.TestCase):
+    def test_clear_difference_excludes_zero(self):
+        mean, lo, hi = paired_bootstrap([10, 11, 12, 13] * 10, [5, 6, 5, 6] * 10)
+        self.assertGreater(lo, 0)
+        self.assertAlmostEqual(mean, 6.0)
+
+    def test_no_difference_includes_zero(self):
+        _, lo, hi = paired_bootstrap([1, -1, 2, -2] * 10, [0, 0, 0, 0] * 10)
+        self.assertLess(lo, 0)
+        self.assertGreater(hi, 0)
 
 
 class BM25Tests(unittest.TestCase):

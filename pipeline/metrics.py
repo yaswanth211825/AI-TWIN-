@@ -17,6 +17,7 @@ Automatic metrics are a proxy. The final judge is a blind test with friends (ste
 from __future__ import annotations
 
 import math
+import random
 import re
 import statistics
 from collections import Counter
@@ -101,3 +102,14 @@ def summarize(preds: list[str], refs: list[str], profile: StyleProfile) -> dict:
         "emoji": round(statistics.mean(s["emoji"] for s in styles), 2),
         "assistant_speak": round(statistics.mean(s["assistant_speak"] for s in styles), 2),
     }
+
+
+def paired_bootstrap(a: list[float], b: list[float], rounds: int = 5000, seed: int = 1) -> tuple[float, float, float]:
+    """Mean of (a - b) over the same test items, with a 95% bootstrap interval.
+
+    If the interval contains 0, the difference could be chance at this sample size.
+    """
+    diffs = [x - y for x, y in zip(a, b)]
+    rng = random.Random(seed)
+    means = sorted(statistics.mean(rng.choice(diffs) for _ in diffs) for _ in range(rounds))
+    return statistics.mean(diffs), means[int(0.025 * rounds)], means[int(0.975 * rounds)]

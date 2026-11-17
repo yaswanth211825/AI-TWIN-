@@ -156,3 +156,19 @@ python3 -m pipeline.step5_baseline --sample 40 --openai gpt-6-luna,gpt-6.1-terra
 
 All models answer the same 40 test messages (`--sample`), so the comparison is fair. The winner goes into
 `config.GENERATION_MODEL`.
+
+### Step 6 results (2026-11-17, 40 test messages, prompt + RAG)
+
+| Model | chrF | Length vs yours | Multi-line | Emoji | Est. cost (both systems) |
+|---|---|---|---|---|---|
+| Your real replies | 100 | 1.00 | 0.85 | 0.10 | |
+| `gpt-6-luna` | 14.0 | 0.88 | 0.72 | 0.90 | $0.004 |
+| `gpt-6.1-terra` | 13.8 | 0.87 | 0.95 | 0.68 | $0.04 |
+| `gpt-4o` | 16.0 | 1.13 | 0.82 | 0.70 | $0.10 |
+
+- `gpt-4o` leads chrF by +2.0 (95% CI +0.6 to +3.5), but with balanced chrF (beta = 1) the lead is +0.8
+  (CI -0.5 to +2.2), i.e. mostly from longer replies. Reading the replies, its Telugu is the least natural.
+- **Chosen: `gpt-6-luna`.** Same quality within noise, 22x cheaper than `gpt-4o`, current (4o shuts down 2027-01-14).
+- All models overuse emoji (you: 10%). "Do not use emoji" in the prompt cut luna from 90% to 35%; an output
+  filter in the app (step 8) handles the rest.
+- Significance checks use `metrics.paired_bootstrap`.

@@ -64,9 +64,11 @@ MODEL_PRICES = {             # (input, output)
 }
 # Reasoning models think before answering (hidden tokens: slower, costlier). A chat reply does not need it.
 REASONING_EFFORT = {"gpt-6-luna": "none", "gpt-6.1-terra": "none"}  # gpt-4o has no reasoning setting
-GENERATION_MODEL = "gpt-6-luna"  # provisional; confirmed by the step 6 pilot
+# Chosen by the step 6 pilot (2026-11-17, 40 test messages, see README "Step 6 results").
+GENERATION_MODEL = "gpt-6-luna"
 EVAL_SAMPLE = 40                 # test messages per model in the pilot
 PERSONA_RULES = (
     " Never say you are an AI, a model or an assistant. Never use bullet lists or formal phrases. "
+    "Do not use emoji. "
     "If examples of Yaswanth's past replies are given, copy their tone and wording, never their content."
 )
