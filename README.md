@@ -21,7 +21,7 @@ writes the training files for it.
 | 3b | `pipeline/step3b_tags.py` | `data/exchanges_tagged.jsonl`, `data/step3b_report.json` | done |
 | 4 | `pipeline/step4_split.py` | `data/rag.jsonl`, `data/test.jsonl` | done |
 | 5 | `pipeline/step5_baseline.py` | `data/eval/results.json`, `data/eval/prompts_*.jsonl` | offline baselines done; LLM baselines need replies |
-| 6 | choose the generation model | | next |
+| 6 | choose the generation model (`step5_baseline.py --openai`) | `data/eval/results_sample40.json` | pilot ready; needs a run with your key |
 | 7 | build the RAG index (embeddings + pgvector) | | |
 | 8 | wire into the Spring AI app | | |
 | 9 | compare and blind test | | |
@@ -142,3 +142,17 @@ python3 -m unittest discover -s tests -v
 ```
 
 Needs Python 3.10+ and no extra packages.
+
+## Step 6: choose the generation model
+
+Candidates and prices are in `config.MODEL_PRICES` (OpenAI pricing page, checked 2026-11-17).
+`gpt-4o` shuts down on 2027-01-14; `gpt-6-luna` is OpenAI's listed replacement. Reasoning is switched
+off (`config.REASONING_EFFORT`) because a chat reply does not need hidden "thinking" tokens.
+
+```bash
+python3 -m pipeline.step5_baseline --sample 40 --estimate gpt-6-luna,gpt-6.1-terra,gpt-4o   # cost only
+python3 -m pipeline.step5_baseline --sample 40 --openai gpt-6-luna,gpt-6.1-terra,gpt-4o     # pilot (needs OPENAI_API_KEY)
+```
+
+All models answer the same 40 test messages (`--sample`), so the comparison is fair. The winner goes into
+`config.GENERATION_MODEL`.

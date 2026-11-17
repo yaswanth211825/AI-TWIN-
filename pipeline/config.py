@@ -52,8 +52,20 @@ SYSTEM_PROMPT = (
     "line breaks between quick thoughts."
 )
 
-# Step 5. Baseline (prompt-only and prompt + RAG) settings, same idea as AI Twin 4.
+# Step 5/6. Baseline (prompt-only and prompt + RAG) settings, same idea as AI Twin 4.
 RAG_TOP_K = 4
+
+# Step 6. Generation model candidates (OpenAI pricing page, checked 2026-11-17, $ per 1M tokens).
+# gpt-4o shuts down 2027-01-14; gpt-6-luna is OpenAI's listed replacement.
+MODEL_PRICES = {             # (input, output)
+    "gpt-6-luna": (0.10, 0.50),
+    "gpt-6.1-terra": (1.00, 5.00),
+    "gpt-4o": (2.50, 10.00),
+}
+# Reasoning models think before answering (hidden tokens: slower, costlier). A chat reply does not need it.
+REASONING_EFFORT = {"gpt-6-luna": "none", "gpt-6.1-terra": "none"}  # gpt-4o has no reasoning setting
+GENERATION_MODEL = "gpt-6-luna"  # provisional; confirmed by the step 6 pilot
+EVAL_SAMPLE = 40                 # test messages per model in the pilot
 PERSONA_RULES = (
     " Never say you are an AI, a model or an assistant. Never use bullet lists or formal phrases. "
     "If examples of Yaswanth's past replies are given, copy their tone and wording, never their content."

@@ -4,7 +4,7 @@ import unittest
 
 from pipeline.metrics import StyleProfile, chrf, summarize
 from pipeline.retrieval import BM25
-from pipeline.step5_baseline import build_messages
+from pipeline.step5_baseline import build_messages, estimate_cost, sample
 
 
 class ChrfTests(unittest.TestCase):
@@ -59,6 +59,21 @@ class PromptTests(unittest.TestCase):
 
     def test_prompt_only_has_no_examples(self):
         self.assertEqual(build_messages(self.EXCHANGE, None)[-1]["content"], "TCS results?")
+
+
+class PilotTests(unittest.TestCase):
+    TEST = [{"exchange_id": f"id{i}", "ts": f"2026-07-{i % 28 + 1:02d}T10:00:00"} for i in range(100)]
+
+    def test_sample_is_stable_and_time_ordered(self):
+        a, b = sample(self.TEST, 10), sample(list(reversed(self.TEST)), 10)
+        self.assertEqual([e["exchange_id"] for e in a], [e["exchange_id"] for e in b])
+        self.assertEqual([e["ts"] for e in a], sorted(e["ts"] for e in a))
+        self.assertIs(sample(self.TEST, None), self.TEST)
+
+    def test_cost_estimate(self):
+        prompts = [{"messages": [{"role": "user", "content": "x" * 4000}]}]  # ~1000 input tokens
+        # gpt-4o: 1000 * 2.50 + 60 * 10.00 per million tokens
+        self.assertAlmostEqual(estimate_cost(prompts, "gpt-4o"), (1000 * 2.5 + 60 * 10) / 1_000_000)
 
 
 if __name__ == "__main__":
