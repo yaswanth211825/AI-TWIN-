@@ -81,6 +81,22 @@ class RedactTests(unittest.TestCase):
         self.assertEqual(redact("8 LPA, 2026 batch, room 204", Counter()), "8 LPA, 2026 batch, room 204")
 
 
+class DuplicateCopyTests(unittest.TestCase):
+    def test_copy_seconds_apart_is_dropped_but_later_repeat_kept(self):
+        chat = "\n".join([
+            "[06/05/25, 9:00:00 PM] Ravi: hi",
+            "[06/05/25, 9:00:03 PM] Ravi: hi",                 # export copy, 3 s later
+            "[06/05/25, 9:00:04 PM] Prosessor: hi",            # different sender: kept
+            "[06/05/25, 9:05:00 PM] Ravi: hi",                 # 5 min later: a real new message
+        ])
+        with tempfile.TemporaryDirectory() as tmp:
+            src = Path(tmp) / "_chat.txt"
+            src.write_text(chat, encoding="utf-8")
+            report = run(src, Path(tmp) / "out")
+        self.assertEqual(report["dropped"], {"duplicate_copy": 1})
+        self.assertEqual(report["kept"], 3)
+
+
 class RunTests(unittest.TestCase):
     def test_end_to_end(self):
         with tempfile.TemporaryDirectory() as tmp:

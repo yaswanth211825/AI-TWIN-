@@ -185,6 +185,8 @@ def run(input_path: Path, out_dir: Path) -> dict:
     kept_by_sender: Counter[str] = Counter()
     edited = captions = multiline = telugu = 0
     kept: list[dict] = []
+    last_seen: dict[tuple[str, str], datetime] = {}
+    window = config.DUPLICATE_WINDOW_SECONDS
 
     for message in raw:
         senders_raw[message.sender] += 1
@@ -192,6 +194,13 @@ def run(input_path: Path, out_dir: Path) -> dict:
         edited += result.was_edited
         if result.text is None:
             dropped[result.drop_reason] += 1
+            continue
+        # Merged exports contain the same message twice with timestamps a few seconds apart.
+        key = (message.sender, result.text)
+        previous = last_seen.get(key)
+        last_seen[key] = message.ts
+        if previous is not None and (message.ts - previous).total_seconds() <= window:
+            dropped["duplicate_copy"] += 1
             continue
         captions += result.was_caption
         text = redact(result.text, redacted)

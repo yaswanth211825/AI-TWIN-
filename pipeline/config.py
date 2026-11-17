@@ -16,6 +16,10 @@ ME_NAMES = {"Prosessor"}
 # WhatsApp writes dates in the phone's region format. Indian phones use day/month/year.
 DATE_FORMATS = ("%d/%m/%y", "%d/%m/%Y")
 
+# Step 1. Overlapping exports record the same message with timestamps 1-5 s apart.
+# The same sender sending the exact same text again within this window is treated as a copy.
+DUPLICATE_WINDOW_SECONDS = 10
+
 # Step 2. Chosen from the gap histogram of the real chat (see lesson 1c):
 # 81% of gaps are under 1 minute; the turn count barely changes between 1 and 5 minutes.
 BURST_GAP_MINUTES = 2     # same sender, next message within this -> same turn
