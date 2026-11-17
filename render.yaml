@@ -1,0 +1,28 @@
+# Render Blueprint: creates the app AND its Postgres database in one go.
+# Render dashboard -> New -> Blueprint -> pick this repo. It asks for the secrets marked sync: false.
+services:
+  - type: web
+    name: ai-twin
+    runtime: docker
+    plan: free                 # sleeps after 15 min idle, ~1 min to wake up
+    region: singapore          # closest Render region to India; must match the database
+    healthCheckPath: /api/health
+    envVars:
+      - key: OPENAI_API_KEY
+        sync: false            # you paste it during setup; never stored in git
+      - key: APP_ACCESS_CODE
+        sync: false            # shared password for the demo; leave empty to make it public
+      - key: DATABASE_URL
+        fromDatabase:
+          name: ai-twin-db
+          property: connectionString
+      - key: GUARD_GLOBAL_PER_DAY
+        value: "300"
+
+databases:
+  - name: ai-twin-db
+    plan: free                 # free Postgres expires after 30 days
+    region: singapore
+    databaseName: ai_twin
+    user: ai_twin
+    postgresMajorVersion: "16"

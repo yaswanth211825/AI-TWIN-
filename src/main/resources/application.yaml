@@ -1,0 +1,50 @@
+server:
+  port: ${PORT:8090}
+  error:
+    include-message: never      # never leak internal error details to the browser
+    include-stacktrace: never
+
+spring:
+  application:
+    name: ai-twin
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5433/ai_twin}
+    username: ${DB_USERNAME:ai_twin}
+    password: ${DB_PASSWORD:ai_twin}
+  sql:
+    init:
+      mode: always            # runs schema.sql (our conversations table)
+  ai:
+    openai:
+      api-key: ${OPENAI_API_KEY}
+      chat:
+        options:
+          model: ${OPENAI_MODEL:gpt-5.4}
+          reasoning-effort: ${OPENAI_REASONING_EFFORT:low}
+          max-completion-tokens: ${OPENAI_MAX_COMPLETION_TOKENS:2000}   # caps cost per reply
+      embedding:
+        options:
+          model: text-embedding-3-small
+    vectorstore:
+      pgvector:
+        initialize-schema: true   # creates the vector_store table + HNSW index
+        dimensions: 1536          # text-embedding-3-small output size
+        distance-type: cosine-distance
+        index-type: hnsw
+    chat:
+      memory:
+        repository:
+          jdbc:
+            initialize-schema: always   # creates spring_ai_chat_memory
+
+ai-twin:
+  memory-window: 20          # messages of THIS conversation sent to the model
+  retrieval:
+    top-k: 4
+    similarity-threshold: 0.45
+  guard:
+    access-code: ${APP_ACCESS_CODE:}                       # empty = no access code
+    messages-per-minute: ${GUARD_MESSAGES_PER_MINUTE:8}    # per IP
+    messages-per-day: ${GUARD_MESSAGES_PER_DAY:150}        # per IP
+    new-chats-per-hour: ${GUARD_NEW_CHATS_PER_HOUR:20}     # per IP
+    global-messages-per-day: ${GUARD_GLOBAL_PER_DAY:500}   # everyone combined
