@@ -28,6 +28,7 @@ import hashlib
 import json
 import os
 import random
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -123,8 +124,12 @@ def openai_reply(messages: list[dict], model: str, api_key: str) -> str:
     request = urllib.request.Request(
         "https://api.openai.com/v1/chat/completions", data=json.dumps(body).encode(),
         headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"})
-    with urllib.request.urlopen(request, timeout=60) as response:
-        return json.load(response)["choices"][0]["message"]["content"].strip()
+    try:
+        with urllib.request.urlopen(request, timeout=60) as response:
+            return json.load(response)["choices"][0]["message"]["content"].strip()
+    except urllib.error.HTTPError as e:  # surface OpenAI's reason (e.g. expired key) instead of a traceback
+        error = json.load(e).get("error", {})
+        raise SystemExit(f"OpenAI {e.code} for {model}: {error.get('code')} - {error.get('message')}") from None
 
 
 def replies_path(system: str, model: str) -> Path:
