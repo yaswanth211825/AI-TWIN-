@@ -12,8 +12,8 @@ The raw export stays outside the project (`~/Downloads/Mustang_Chats/`).
 |---|---|---|---|
 | 1 | `pipeline/step1_parse_clean.py` | `data/messages.jsonl`, `data/step1_report.json` | done |
 | 2 | `pipeline/step2_turns_sessions.py` | `data/turns.jsonl`, `data/step2_report.json` | done |
-| 3 | build exchanges | | next |
-| 4 | time split: train / test | | |
+| 3 | `pipeline/step3_exchanges.py` | `data/exchanges.jsonl`, `data/step3_report.json` | done |
+| 4 | time split: train / test | | next |
 | 5 | baseline score | | |
 | 6 | fine-tune | | |
 | 7 | rebuild RAG index | | |
@@ -51,6 +51,25 @@ Output row:
 
 ```json
 {"turn_id": 1, "session_id": 1, "sender": "me", "start": "...", "end": "...", "n_messages": 2, "text": "line one\nline two"}
+```
+
+## Step 3: exchanges
+
+```bash
+python3 -m pipeline.step3_exchanges
+```
+
+An exchange is the training and retrieval unit: one of your replies plus up to `CONTEXT_TURNS` (3) turns before it in the same session.
+
+- **Reply:** a turn by `me` whose previous turn in the same session is by `friend`.
+- **Dropped:** replies with redaction placeholders, replies over `MAX_REPLY_CHARS`, and copies of the same reply beyond `MAX_SAME_REPLY` (chosen by a stable hash, so re-runs match).
+- **Kept but marked `low_value`:** fillers like "ok", "hmm" or emoji only.
+
+Output row:
+
+```json
+{"exchange_id": 1, "session_id": 1, "ts": "...", "context": [{"sender": "friend", "text": "..."}],
+ "reply": "...", "reply_n_messages": 2, "latency_seconds": 42, "low_value": false}
 ```
 
 ## Tests

@@ -20,3 +20,8 @@ DATE_FORMATS = ("%d/%m/%y", "%d/%m/%Y")
 # 81% of gaps are under 1 minute; the turn count barely changes between 1 and 5 minutes.
 BURST_GAP_MINUTES = 2     # same sender, next message within this -> same turn
 SESSION_GAP_MINUTES = 60  # silence longer than this -> new conversation
+
+# Step 3. Exchange = up to CONTEXT_TURNS earlier turns -> your reply turn.
+CONTEXT_TURNS = 3         # 95% of replies have 3 earlier turns in their session
+MAX_SAME_REPLY = 5        # one reply text appears 36 times; keep at most 5 copies of any reply
+MAX_REPLY_CHARS = 1200    # 99% of replies are under 400 chars; longer ones are usually pasted text
