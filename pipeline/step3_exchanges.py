@@ -54,6 +54,11 @@ def is_low_value(text: str) -> bool:
     return bool(NO_LETTERS.match(n) or FILLER.match(n) or len(n) <= 3)
 
 
+def exchange_key(reply_start: str, reply_text: str) -> str:
+    """Stable id from the reply itself, so tags survive re-running the pipeline with more data."""
+    return hashlib.sha1(f"{reply_start}|{reply_text}".encode()).hexdigest()[:10]
+
+
 def stable_rank(turn_id: int) -> str:
     """Deterministic pseudo-random order, so re-running gives the same result."""
     return hashlib.sha1(str(turn_id).encode()).hexdigest()
@@ -76,6 +81,7 @@ def find_candidates(turns: list[dict], context_turns: int) -> list[dict]:
 
         latency = datetime.fromisoformat(turn["start"]) - datetime.fromisoformat(previous["end"])
         candidates.append({
+            "exchange_id": exchange_key(turn["start"], turn["text"]),
             "turn_id": turn["turn_id"],
             "session_id": turn["session_id"],
             "ts": turn["start"],
@@ -117,9 +123,6 @@ def run(input_path: Path, out_dir: Path) -> dict:
     turns = [json.loads(line) for line in input_path.read_text(encoding="utf-8").splitlines() if line.strip()]
     candidates = find_candidates(turns, config.CONTEXT_TURNS)
     exchanges, dropped = apply_filters(candidates, config.MAX_SAME_REPLY, config.MAX_REPLY_CHARS)
-
-    for n, e in enumerate(exchanges, start=1):
-        e["exchange_id"] = n
 
     reply_chars = [len(e["reply"]) for e in exchanges]
     report = {

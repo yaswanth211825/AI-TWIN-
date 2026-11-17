@@ -63,24 +63,30 @@ def load_exchanges(path: Path) -> list[dict]:
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
 
 
-def export(exchanges: list[dict], out_dir: Path) -> int:
-    """Writes compact batches: the last context turn(s) and the reply, newlines shown as ' / '."""
+def export(exchanges: list[dict], out_dir: Path, tag_dir: Path) -> int:
+    """Writes compact batches of exchanges that have no tags yet: last context turn(s) and the reply.
+
+    Batch numbers continue after the existing tag files, so earlier tags are never overwritten.
+    """
     out_dir.mkdir(parents=True, exist_ok=True)
-    batches = 0
-    for start in range(0, len(exchanges), BATCH_SIZE):
-        batches += 1
+    tagged, _ = read_tags(tag_dir)
+    todo = [e for e in exchanges if e["exchange_id"] not in tagged]
+    existing = [int(p.stem.split("_")[1]) for p in tag_dir.glob("batch_*.tsv")]
+    batch_no = max(existing, default=0)
+    for start in range(0, len(todo), BATCH_SIZE):
+        batch_no += 1
         lines = []
-        for e in exchanges[start:start + BATCH_SIZE]:
+        for e in todo[start:start + BATCH_SIZE]:
             context = " | ".join(
                 f"{'F' if t['sender'] == 'friend' else 'M'}: {clip(t['text'], CONTEXT_CHARS)}" for t in e["context"][-CONTEXT_TURNS_SHOWN:]
             )
             lines.append(f"#{e['exchange_id']} {context} >> {clip(e['reply'], REPLY_CHARS)}")
-        (out_dir / f"batch_{batches:02d}.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
-    return batches
+        (out_dir / f"batch_{batch_no:02d}.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return len(todo)
 
 
-def read_tags(tag_dir: Path) -> tuple[dict[int, dict], list[str]]:
-    tags: dict[int, dict] = {}
+def read_tags(tag_dir: Path) -> tuple[dict[str, dict], list[str]]:
+    tags: dict[str, dict] = {}
     errors: list[str] = []
     for file in sorted(tag_dir.glob("*.tsv")):
         for n, line in enumerate(file.read_text(encoding="utf-8").splitlines(), start=1):
@@ -95,9 +101,9 @@ def read_tags(tag_dir: Path) -> tuple[dict[int, dict], list[str]]:
             if topic not in TOPICS or kind not in TYPES or quality not in "12345" or private not in ("0", "1"):
                 errors.append(f"{where} invalid value")
                 continue
-            if int(ex_id) in tags:
+            if ex_id in tags:
                 errors.append(f"{where} duplicate id {ex_id}")
-            tags[int(ex_id)] = {
+            tags[ex_id] = {
                 "topic": TOPICS[topic], "type": TYPES[kind], "quality": int(quality), "private": private == "1",
             }
     return tags, errors
@@ -143,8 +149,8 @@ def main() -> None:
 
     exchanges = load_exchanges(args.input)
     if args.command == "export":
-        n = export(exchanges, config.DATA_DIR / "tag_batches")
-        print(f"Wrote {n} batches of up to {BATCH_SIZE} to {config.DATA_DIR / 'tag_batches'}")
+        n = export(exchanges, config.DATA_DIR / "tag_batches", config.DATA_DIR / "tags")
+        print(f"Exported {n} untagged exchanges in batches of up to {BATCH_SIZE} to {config.DATA_DIR / 'tag_batches'}")
     else:
         report = merge(exchanges, config.DATA_DIR / "tags", config.DATA_DIR)
         print(json.dumps(report, indent=2))

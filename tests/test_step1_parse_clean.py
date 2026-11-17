@@ -92,7 +92,7 @@ class DuplicateCopyTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             src = Path(tmp) / "_chat.txt"
             src.write_text(chat, encoding="utf-8")
-            report = run(src, Path(tmp) / "out")
+            report = run([src], Path(tmp) / "out")
         self.assertEqual(report["dropped"], {"duplicate_copy": 1})
         self.assertEqual(report["kept"], 3)
 
@@ -102,7 +102,7 @@ class RunTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             src = Path(tmp) / "_chat.txt"
             src.write_text(SAMPLE, encoding="utf-8")
-            report = run(src, Path(tmp) / "out")
+            report = run([src], Path(tmp) / "out")
             rows = [json.loads(line) for line in (Path(tmp) / "out" / "messages.jsonl").read_text().splitlines()]
 
         self.assertEqual(report["parsed_messages"], 9)

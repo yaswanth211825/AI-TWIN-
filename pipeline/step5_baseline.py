@@ -73,7 +73,7 @@ def nearest_reply(test: list[dict], rag: list[dict], index: BM25) -> list[str]:
 # ---------------------------------------------------------------------------
 
 def build_messages(exchange: dict, examples: list[dict] | None) -> list[dict]:
-    messages = [{"role": "system", "content": config.FINETUNE_SYSTEM_PROMPT + config.PERSONA_RULES}]
+    messages = [{"role": "system", "content": config.SYSTEM_PROMPT + config.PERSONA_RULES}]
     for turn in exchange["context"]:
         role = ROLE[turn["sender"]]
         if messages[-1]["role"] == role:

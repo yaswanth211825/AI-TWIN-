@@ -175,9 +175,16 @@ def redact(text: str, counts: Counter[str]) -> str:
 TELUGU_SCRIPT = re.compile(r"[ఀ-౿]")
 
 
-def run(input_path: Path, out_dir: Path) -> dict:
-    lines = input_path.read_text(encoding="utf-8").split("\n")
-    raw, orphans = parse(lines)
+def run(input_paths: list[Path], out_dir: Path) -> dict:
+    """Parses every export separately, then merges all messages in time order."""
+    raw: list[RawMessage] = []
+    orphans = out_of_order = 0
+    for path in input_paths:
+        messages, file_orphans = parse(path.read_text(encoding="utf-8").split("\n"))
+        orphans += file_orphans
+        out_of_order += sum(1 for a, b in zip(messages, messages[1:]) if b.ts < a.ts)
+        raw.extend(messages)
+    raw.sort(key=lambda m: m.ts)  # stable: same-second messages keep their file order
 
     dropped: Counter[str] = Counter()
     redacted: Counter[str] = Counter()
@@ -210,9 +217,8 @@ def run(input_path: Path, out_dir: Path) -> dict:
         telugu += bool(TELUGU_SCRIPT.search(text))
         kept.append({"id": len(kept) + 1, "ts": message.ts.isoformat(), "sender": sender, "text": text})
 
-    out_of_order = sum(1 for a, b in zip(raw, raw[1:]) if b.ts < a.ts)
     report = {
-        "input": input_path.name,
+        "inputs": [p.name for p in input_paths],
         "parsed_messages": len(raw),
         "orphan_lines": orphans,
         "out_of_order": out_of_order,
@@ -239,8 +245,8 @@ def run(input_path: Path, out_dir: Path) -> dict:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Step 1: parse and clean a WhatsApp export.")
-    parser.add_argument("--input", type=Path, default=config.RAW_CHAT, help="WhatsApp export (.txt)")
+    parser = argparse.ArgumentParser(description="Step 1: parse and clean WhatsApp exports.")
+    parser.add_argument("--input", type=Path, nargs="+", default=config.RAW_CHATS, help="WhatsApp exports (.txt)")
     parser.add_argument("--out", type=Path, default=config.DATA_DIR, help="output folder")
     args = parser.parse_args()
 

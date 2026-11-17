@@ -113,17 +113,18 @@ def describe(rows: list[dict]) -> dict:
     }
 
 
-def run(input_path: Path, out_dir: Path) -> dict:
+def run(input_path: Path, out_dir: Path, finetune: bool = False) -> dict:
     exchanges = [json.loads(line) for line in input_path.read_text(encoding="utf-8").splitlines() if line.strip()]
     kept, dropped = usable(exchanges, config.MIN_QUALITY)
     train, val, test = split_by_session(kept, config.SPLIT)
 
-    ft_train = [to_chat(e, config.FINETUNE_SYSTEM_PROMPT) for e in train]
-    ft_val = [to_chat(e, config.FINETUNE_SYSTEM_PROMPT) for e in val]
-
     out_dir.mkdir(parents=True, exist_ok=True)
-    write_jsonl(out_dir / "finetune_train.jsonl", ft_train)
-    write_jsonl(out_dir / "finetune_val.jsonl", ft_val)
+    ft_train = ft_val = []
+    if finetune:  # future scope: LoRA on an open model; not part of the RAG build
+        ft_train = [to_chat(e, config.SYSTEM_PROMPT) for e in train]
+        ft_val = [to_chat(e, config.SYSTEM_PROMPT) for e in val]
+        write_jsonl(out_dir / "finetune_train.jsonl", ft_train)
+        write_jsonl(out_dir / "finetune_val.jsonl", ft_val)
     write_jsonl(out_dir / "rag.jsonl", [to_rag(e) for e in train + val])
     write_jsonl(out_dir / "test.jsonl", test)
 
@@ -137,19 +138,21 @@ def run(input_path: Path, out_dir: Path) -> dict:
         "val": describe(val),
         "test": describe(test),
         "shared_sessions": len({e["session_id"] for e in train + val} & {e["session_id"] for e in test}),
-        "finetune_tokens_approx": {"train": approx_tokens(ft_train), "val": approx_tokens(ft_val)},
         "rag_records": len(train) + len(val),
     }
+    if finetune:
+        report["finetune_tokens_approx"] = {"train": approx_tokens(ft_train), "val": approx_tokens(ft_val)}
     (out_dir / "step4_report.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     return report
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Step 4: filter, split by time, write fine-tune / RAG / test files.")
+    parser = argparse.ArgumentParser(description="Step 4: filter, split by time, write RAG index and test files.")
     parser.add_argument("--input", type=Path, default=config.DATA_DIR / "exchanges_tagged.jsonl")
     parser.add_argument("--out", type=Path, default=config.DATA_DIR)
+    parser.add_argument("--finetune", action="store_true", help="also write OpenAI-format fine-tuning files")
     args = parser.parse_args()
-    print(json.dumps(run(args.input, args.out), indent=2))
+    print(json.dumps(run(args.input, args.out, args.finetune), indent=2))
 
 
 if __name__ == "__main__":

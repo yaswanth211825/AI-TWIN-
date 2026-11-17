@@ -1,10 +1,15 @@
 # AI Twin 5
 
-An AI twin that replies like Yaswanth, built from scratch with **fine-tuning + RAG**.
-This repo starts with the data pipeline that turns a WhatsApp export into training and retrieval data.
+An AI twin that replies like Yaswanth, built from scratch with **RAG** (retrieval-augmented generation).
+This repo starts with the data pipeline that turns WhatsApp exports into a retrieval index and a held-out test set.
 
 Real chats and everything generated from them live in `data/`, which is git-ignored.
-The raw export stays outside the project (`~/Downloads/Mustang_Chats/`).
+The raw exports stay outside the project (`~/Downloads/Mustang_Chats/`): the 2024 chat and the merged 2025-26 exports
+with the same friend (`config.RAW_CHATS`).
+
+**Why no fine-tuning:** OpenAI closed fine-tuning to new organisations on 2026-05-07 and its fine-tunable models
+shut down on 2027-01-14. Fine-tuning an open model with LoRA is future scope; `step4_split.py --finetune` still
+writes the training files for it.
 
 ## Pipeline
 
@@ -14,12 +19,12 @@ The raw export stays outside the project (`~/Downloads/Mustang_Chats/`).
 | 2 | `pipeline/step2_turns_sessions.py` | `data/turns.jsonl`, `data/step2_report.json` | done |
 | 3 | `pipeline/step3_exchanges.py` | `data/exchanges.jsonl`, `data/step3_report.json` | done |
 | 3b | `pipeline/step3b_tags.py` | `data/exchanges_tagged.jsonl`, `data/step3b_report.json` | done |
-| 4 | `pipeline/step4_split.py` | `data/finetune_train.jsonl`, `finetune_val.jsonl`, `rag.jsonl`, `test.jsonl` | done |
+| 4 | `pipeline/step4_split.py` | `data/rag.jsonl`, `data/test.jsonl` | done |
 | 5 | `pipeline/step5_baseline.py` | `data/eval/results.json`, `data/eval/prompts_*.jsonl` | offline baselines done; LLM baselines need replies |
-| 6 | fine-tune | | |
-| 7 | rebuild RAG index | | |
-| 8 | wire into the app | | |
-| 9 | compare | | |
+| 6 | choose the generation model | | next |
+| 7 | build the RAG index (embeddings + pgvector) | | |
+| 8 | wire into the Spring AI app | | |
+| 9 | compare and blind test | | |
 
 ## Step 1: parse and clean
 
@@ -98,14 +103,14 @@ python3 -m pipeline.step4_split
 ```
 
 - **Filter:** keep exchanges with `quality >= MIN_QUALITY` (3) that are not `private`.
-- **Split:** oldest 80% train, next 10% validation, newest 10% test, cutting only at session boundaries so neighbouring messages never land on both sides (no leakage).
+- **Split (`SPLIT` in config):** oldest 90% becomes the retrieval index, newest 10% the test set, cutting only at session boundaries so neighbouring messages never land on both sides (no leakage).
 - **Outputs:**
 
 | File | Used for | Format |
 |---|---|---|
-| `finetune_train.jsonl`, `finetune_val.jsonl` | Fine-tuning (step 6) | OpenAI chat format; earlier replies of yours in the context get `"weight": 0` so only the final reply is learned |
-| `rag.jsonl` | pgvector index (step 7) | `embed_text` = the friend's last turn; `reply` stored as the style example |
-| `test.jsonl` | Scoring only (steps 5 and 9) | Never trained on or indexed |
+| `rag.jsonl` | pgvector index (step 7) | `embed_text` = the friend's last turn; `reply` and context stored as the style example |
+| `test.jsonl` | Scoring only (steps 5 and 9) | Never indexed |
+| `finetune_*.jsonl` (only with `--finetune`) | Future LoRA fine-tuning | OpenAI chat format; earlier replies of yours in the context get `"weight": 0` |
 
 ## Step 5: baseline score
 
