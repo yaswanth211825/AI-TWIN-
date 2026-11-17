@@ -14,8 +14,8 @@ The raw export stays outside the project (`~/Downloads/Mustang_Chats/`).
 | 2 | `pipeline/step2_turns_sessions.py` | `data/turns.jsonl`, `data/step2_report.json` | done |
 | 3 | `pipeline/step3_exchanges.py` | `data/exchanges.jsonl`, `data/step3_report.json` | done |
 | 3b | `pipeline/step3b_tags.py` | `data/exchanges_tagged.jsonl`, `data/step3b_report.json` | done |
-| 4 | time split: train / test | | next |
-| 5 | baseline score | | |
+| 4 | `pipeline/step4_split.py` | `data/finetune_train.jsonl`, `finetune_val.jsonl`, `rag.jsonl`, `test.jsonl` | done |
+| 5 | baseline score | | next |
 | 6 | fine-tune | | |
 | 7 | rebuild RAG index | | |
 | 8 | wire into the app | | |
@@ -90,6 +90,22 @@ Each exchange gets four tags, written by an LLM reading the exported batches and
 | `private` | true when the reply or its context holds secrets, third-party sensitive details or content the twin should never repeat |
 
 Later steps keep exchanges with `quality >= 3` and `private == false`.
+
+## Step 4: filter and split
+
+```bash
+python3 -m pipeline.step4_split
+```
+
+- **Filter:** keep exchanges with `quality >= MIN_QUALITY` (3) that are not `private`.
+- **Split:** oldest 80% train, next 10% validation, newest 10% test, cutting only at session boundaries so neighbouring messages never land on both sides (no leakage).
+- **Outputs:**
+
+| File | Used for | Format |
+|---|---|---|
+| `finetune_train.jsonl`, `finetune_val.jsonl` | Fine-tuning (step 6) | OpenAI chat format; earlier replies of yours in the context get `"weight": 0` so only the final reply is learned |
+| `rag.jsonl` | pgvector index (step 7) | `embed_text` = the friend's last turn; `reply` stored as the style example |
+| `test.jsonl` | Scoring only (steps 5 and 9) | Never trained on or indexed |
 
 ## Tests
 

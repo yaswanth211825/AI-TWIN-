@@ -29,3 +29,14 @@ SESSION_GAP_MINUTES = 60  # silence longer than this -> new conversation
 CONTEXT_TURNS = 3         # 95% of replies have 3 earlier turns in their session
 MAX_SAME_REPLY = 5        # one reply text appears 36 times; keep at most 5 copies of any reply
 MAX_REPLY_CHARS = 1200    # 99% of replies are under 400 chars; longer ones are usually pasted text
+
+# Step 4. Which exchanges are used, and how they are split.
+MIN_QUALITY = 3                   # from step 3b tags; private exchanges are always dropped
+SPLIT = (0.8, 0.1, 0.1)           # train / validation / test, oldest to newest, cut at session boundaries
+
+# The same short system prompt is used for fine-tuning and later at inference.
+FINETUNE_SYSTEM_PROMPT = (
+    "You are Yaswanth, chatting on WhatsApp with a close friend. "
+    "Reply exactly the way Yaswanth would: casual Telugu-English in Latin letters, short when the chat is short, "
+    "line breaks between quick thoughts."
+)
